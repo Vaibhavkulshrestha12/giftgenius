@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { Message, MessageRole, Conversation, UserInputs } from '../types';
 
 interface ChatContextType {
@@ -33,7 +33,6 @@ const defaultContext: ChatContextType = {
 
 const ChatContext = createContext<ChatContextType>(defaultContext);
 
-
 export const useChat = () => useContext(ChatContext);
 
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -60,10 +59,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setConversations(prev => [newConversation, ...prev]);
     setCurrentConversationState(newConversation);
     setCurrentQuestion('gender');
-    console.log('New conversation created with ID:', newConversation.id);
   }, []);
 
-  
   React.useEffect(() => {
     if (conversations.length === 0) {
       createNewConversation();
@@ -71,22 +68,15 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [conversations.length, createNewConversation]);
 
   const addMessage = useCallback((content: string, role: MessageRole) => {
-    if (!currentConversation) {
-      console.error('Cannot add message: No current conversation');
-      return;
-    }
-    
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content,
-      role,
-      timestamp: new Date()
-    };
-
-    console.log(`Adding ${role} message:`, content.substring(0, 50) + (content.length > 50 ? '...' : ''));
-
     setCurrentConversationState(prev => {
       if (!prev) return null;
+      
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        content,
+        role,
+        timestamp: new Date()
+      };
       
       const updatedMessages = [...prev.messages, newMessage];
       const updatedConversation = { ...prev, messages: updatedMessages };
@@ -97,16 +87,9 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       return updatedConversation;
     });
-  }, [currentConversation]);
+  }, []);
 
   const updateUserInputs = useCallback((inputs: Partial<UserInputs>) => {
-    if (!currentConversation) {
-      console.error('Cannot update inputs: No current conversation');
-      return;
-    }
-    
-    console.log('Updating user inputs:', inputs);
-    
     setCurrentConversationState(prev => {
       if (!prev) return null;
       
@@ -119,10 +102,9 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       return updatedConversation;
     });
-  }, [currentConversation]);
+  }, []);
 
   const setCurrentConversation = useCallback((id: string) => {
-    console.log('Setting current conversation to:', id);
     const conversation = conversations.find(c => c.id === id);
     if (conversation) {
       setCurrentConversationState(conversation);
@@ -133,19 +115,14 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       else if (inputs.age === undefined) setCurrentQuestion('age');
       else if (inputs.budget === undefined) setCurrentQuestion('budget');
       else setCurrentQuestion('complete');
-    } else {
-      console.error('Conversation not found:', id);
     }
   }, [conversations]);
-
-  const messages = currentConversation?.messages || [];
-  const userInputs = currentConversation?.userInputs || {};
 
   const value = {
     conversations,
     currentConversation,
-    messages,
-    userInputs,
+    messages: currentConversation?.messages || [],
+    userInputs: currentConversation?.userInputs || {},
     currentQuestion,
     isBotTyping,
     createNewConversation,

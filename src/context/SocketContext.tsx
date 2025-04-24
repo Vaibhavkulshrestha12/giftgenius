@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useChat } from './ChatContext';
 import { MessageRole } from '../types';
@@ -23,173 +23,104 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
   const { addMessage, setIsBotTyping } = useChat();
-  const connectAttempts = useRef(0);
-  const keepAliveInterval = useRef<NodeJS.Timeout | null>(null);
-  const geminiPromptQueue = useRef<any[]>([]);
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
+  const pendingPromptRef = useRef<any>(null);
 
-  
-  useEffect(() => {
-    const connectSocket = () => {
-      
-      const socketClient = io('http://localhost:3001', {
-        transports: ['polling', 'websocket'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        timeout: 10000
-      });
-
-      socketClient.on('connect', () => {
-        console.log('Connected to socket server with ID:', socketClient.id);
-        setConnected(true);
-        connectAttempts.current = 0;
-        
-        
-        if (geminiPromptQueue.current.length > 0) {
-          console.log('Processing queued Gemini prompts:', geminiPromptQueue.current.length);
-          geminiPromptQueue.current.forEach(inputs => {
-            socketClient.emit('gemini-prompt', inputs);
-          });
-          geminiPromptQueue.current = [];
-        }
-        
-        
-        if (keepAliveInterval.current) {
-          clearInterval(keepAliveInterval.current);
-        }
-        keepAliveInterval.current = setInterval(() => {
-          if (socketClient.connected) {
-            socketClient.emit('ping-server');
-          }
-        }, 25000);
-      });
-
-      socketClient.on('disconnect', () => {
-        console.log('Disconnected from socket server');
-        setConnected(false);
-      });
-
-      socketClient.on('connect_error', (error) => {
-        console.error('Connection error:', error);
-        connectAttempts.current += 1;
-        
-        
-        if (connectAttempts.current >= 3) {
-          addMessage('I seem to be having trouble connecting to the server. Please refresh the page or try again later.', MessageRole.BOT);
-        }
-      });
-
-      socketClient.on('bot-message', (message: string) => {
-        console.log('Received bot message of length:', message.length);
-        setIsBotTyping(false);
-        addMessage(message, MessageRole.BOT);
-      });
-
-      socketClient.on('typing-start', () => {
-        console.log('Bot is typing...');
-        setIsBotTyping(true);
-      });
-
-      socketClient.on('typing-end', () => {
-        console.log('Bot stopped typing');
-        setIsBotTyping(false);
-      });
-
-      socketClient.on('pong-client', () => {
-        console.log('Received pong from server (connection alive)');
-      });
-
-      setSocket(socketClient);
-
-      return socketClient;
-    };
-
-    const socketClient = connectSocket();
-
-    
-    return () => {
-      console.log('Cleaning up socket connection');
-      if (keepAliveInterval.current) {
-        clearInterval(keepAliveInterval.current);
-      }
-      socketClient.disconnect();
-    };
+  // Stable message handlers
+  const handleBotMessage = useCallback((message: string) => {
+    setIsBotTyping(false);
+    addMessage(message, MessageRole.BOT);
   }, [addMessage, setIsBotTyping]);
 
-  const sendMessage = (message: string) => {
+  const handleTypingStart = useCallback(() => setIsBotTyping(true), [setIsBotTyping]);
+  const handleTypingEnd = useCallback(() => setIsBotTyping(false), [setIsBotTyping]);
+
+  useEffect(() => {
+    const socketClient = io('http://localhost:3001', {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: maxReconnectAttempts,
+      reconnectionDelay: 1000,
+      timeout: 20000,
+      forceNew: false
+    });
+
+    const handleConnect = () => {
+      console.log('Connected to socket server');
+      setConnected(true);
+      reconnectAttempts.current = 0;
+
+      // Process any pending prompt
+      if (pendingPromptRef.current) {
+        socketClient.emit('gemini-prompt', pendingPromptRef.current);
+        pendingPromptRef.current = null;
+      }
+    };
+
+    const handleDisconnect = (reason: string) => {
+      console.log('Disconnected:', reason);
+      setConnected(false);
+    };
+
+    const handleConnectError = (error: Error) => {
+      console.error('Connection error:', error);
+      reconnectAttempts.current++;
+      
+      if (reconnectAttempts.current >= maxReconnectAttempts) {
+        handleBotMessage('Connection to server failed. Please refresh the page.');
+      }
+    };
+
+    socketClient.on('connect', handleConnect);
+    socketClient.on('disconnect', handleDisconnect);
+    socketClient.on('connect_error', handleConnectError);
+    socketClient.on('bot-message', handleBotMessage);
+    socketClient.on('typing-start', handleTypingStart);
+    socketClient.on('typing-end', handleTypingEnd);
+
+    setSocket(socketClient);
+
+    return () => {
+      socketClient.off('connect', handleConnect);
+      socketClient.off('disconnect', handleDisconnect);
+      socketClient.off('connect_error', handleConnectError);
+      socketClient.off('bot-message', handleBotMessage);
+      socketClient.off('typing-start', handleTypingStart);
+      socketClient.off('typing-end', handleTypingEnd);
+      socketClient.disconnect();
+    };
+  }, []); // Empty dependency array for single socket instance
+
+  const sendMessage = useCallback((message: string) => {
     if (socket?.connected) {
-      console.log('Sending user message:', message);
       socket.emit('user-message', message);
     } else {
-      console.error('Socket not connected. Cannot send message.');
-      
-      
-      if (socket) {
-        console.log('Attempting to reconnect socket...');
-        socket.connect();
-      }
+      console.error('Socket not connected');
+      socket?.connect();
     }
-  };
+  }, [socket]);
 
-  const sendGeminiPrompt = (userInputs: any) => {
-    console.log('sendGeminiPrompt called with inputs:', userInputs);
-    
+  const sendGeminiPrompt = useCallback((userInputs: any) => {
+    // Make sure we have all required fields for a new prompt
+    const promptData = {
+      gender: userInputs.gender,
+      relationship: userInputs.relationship,
+      age: userInputs.age,
+      budget: userInputs.budget,
+      // Add the refinement field if it exists
+      ...(userInputs.refinement && { refinement: userInputs.refinement })
+    };
+
     if (socket?.connected) {
-      console.log('Socket connected, sending Gemini prompt');
       setIsBotTyping(true);
-      socket.emit('gemini-prompt', userInputs);
+      socket.emit('gemini-prompt', promptData);
     } else {
-      console.log('Socket not connected, queueing prompt');
-      
-     
-      geminiPromptQueue.current.push(userInputs);
-      
-      
-      setIsBotTyping(true);
-      
-      
-      setTimeout(() => {
-        addMessage("I'm preparing gift recommendations for you. This might take a moment...", MessageRole.BOT);
-      }, 1000);
-      
-     
-      if (socket) {
-        console.log('Attempting to reconnect socket for Gemini prompt...');
-        socket.connect();
-      }
-      
-      
-      setTimeout(() => {
-        if (geminiPromptQueue.current.includes(userInputs)) {
-          console.log('Providing fallback suggestions after timeout');
-          setIsBotTyping(false);
-          
-          
-          const { gender, relationship, age, budget } = userInputs;
-          let suggestions = '';
-          
-          if (gender === 'Female') {
-            suggestions = `Based on your inputs, here are some gift suggestions for your ${relationship} (age ${age}, budget ₹${budget}):\n\n`;
-            suggestions += `1. Personalized Photo Frame from Amazon.in (₹${Math.min(budget, 800)})\n`;
-            suggestions += `2. Scented Candle Gift Set from Bath & Body Works (₹${Math.min(budget, 1200)})\n`;
-            suggestions += `3. Handcrafted Jewelry Box from Craft Centrals (₹${Math.min(budget, 1500)})\n\n`;
-            suggestions += `These gifts combine sentiment with practicality and are readily available in India.`;
-          } else {
-            suggestions = `Based on your inputs, here are some gift suggestions for your ${relationship} (age ${age}, budget ₹${budget}):\n\n`;
-            suggestions += `1. Leather Wallet from Hidesign (₹${Math.min(budget, 1500)})\n`;
-            suggestions += `2. Wireless Earbuds from Boat on Flipkart (₹${Math.min(budget, 1800)})\n`;
-            suggestions += `3. Customized Name Keychain from Giftsmate.com (₹${Math.min(budget, 500)})\n\n`;
-            suggestions += `These gifts are thoughtful options that show you care while staying within your budget.`;
-          }
-          
-          addMessage(suggestions, MessageRole.BOT);
-          
-         
-          geminiPromptQueue.current = geminiPromptQueue.current.filter(item => item !== userInputs);
-        }
-      }, 8000);
+      handleBotMessage('Connection lost. Reconnecting...');
+      pendingPromptRef.current = promptData;
+      socket?.connect();
     }
-  };
+  }, [socket, setIsBotTyping, handleBotMessage]);
 
   return (
     <SocketContext.Provider value={{ socket, connected, sendMessage, sendGeminiPrompt }}>

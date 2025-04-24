@@ -21,7 +21,7 @@ const ChatPage: React.FC = () => {
           </div>
           <div>
             <a 
-              href="https://github.com/Vaibhavkulshrestha12" 
+              href="https://github.com" 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-sm text-gray-600 hover:text-primary-600 transition-colors"

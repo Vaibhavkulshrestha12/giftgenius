@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Button from '../ui/Button';
 import { useChat } from '../../context/ChatContext';
 import { useSocket } from '../../context/SocketContext';
@@ -12,38 +12,32 @@ const ChatInput: React.FC = () => {
   const [options, setOptions] = useState<OptionType | null>(null);
   const [inputValue, setInputValue] = useState<string>('');
   const [hasSubmittedFinal, setHasSubmittedFinal] = useState<boolean>(false);
+  const [isRefining, setIsRefining] = useState<boolean>(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { addMessage, userInputs, updateUserInputs, currentQuestion, setCurrentQuestion } = useChat();
   const { socket, connected, sendMessage, sendGeminiPrompt } = useSocket();
 
-  
   const defaultOptions = {
     gender: ['Male', 'Female', 'Other'],
     relationship: ['Friend', 'Partner', 'Parent', 'Sibling', 'Colleague', 'Other'],
   };
 
   useEffect(() => {
- 
     if (!options) {
       setOptions(defaultOptions);
     }
     
     if (socket) {
-     
       const handleOptions = (receivedOptions: OptionType) => {
-        console.log('Received options from server:', receivedOptions);
         setOptions(receivedOptions);
       };
       
       socket.on('options', handleOptions);
-      
-      
       return () => {
         socket.off('options', handleOptions);
       };
     }
   }, [socket]);
-
 
   useEffect(() => {
     if (currentQuestion === 'age' || currentQuestion === 'budget') {
@@ -52,6 +46,11 @@ const ChatInput: React.FC = () => {
       }, 100);
     }
   }, [currentQuestion]);
+
+  const resetChat = useCallback(() => {
+    setHasSubmittedFinal(false);
+    setCurrentQuestion('gender');
+  }, [setCurrentQuestion]);
 
   const getNextQuestion = (currentQ: string, userInput: string): string => {
     switch (currentQ) {
@@ -109,81 +108,100 @@ const ChatInput: React.FC = () => {
     }
   };
 
-  const handleOptionSelect = (option: string) => {
-   
-    addMessage(option, MessageRole.USER);
-    
-    
-    sendMessage(option);
-    
-   
-    const nextQuestion = getNextQuestion(currentQuestion, option);
-    const botResponse = getBotResponse(currentQuestion, option);
-    
-  
-    if (botResponse) {
-      setTimeout(() => {
-        addMessage(botResponse, MessageRole.BOT);
-      }, 500);
-    }
-    
-  
-    if (nextQuestion === 'complete' && 
-        userInputs.gender && 
-        userInputs.relationship && 
-        userInputs.age !== undefined && 
-        userInputs.budget !== undefined && 
-        !hasSubmittedFinal) {
-      
-      setHasSubmittedFinal(true);
-      
-      setTimeout(() => {
-        console.log("Sending complete user data to Gemini:", userInputs);
-        sendGeminiPrompt({
-          gender: userInputs.gender,
-          relationship: userInputs.relationship,
-          age: userInputs.age,
-          budget: userInputs.budget
-        });
-      }, 1500);
-    }
-    
-    
-    setCurrentQuestion(nextQuestion);
-    setInputValue('');
-  };
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && inputValue.trim()) {
-      handleOptionSelect(inputValue.trim());
+      if (isRefining) {
+        handleRefinementSubmit();
+      } else {
+        handleOptionSelect(inputValue.trim());
+      }
     }
   };
 
+  const handleRefinementSubmit = () => {
+    if (!inputValue.trim()) return;
+    
+    addMessage(inputValue, MessageRole.USER);
+    sendMessage(inputValue);
+    setInputValue('');
+    
+    // Send the refinement request to Gemini
+    sendGeminiPrompt({
+      ...userInputs,
+      refinement: inputValue
+    });
+  };
+
+  const handleOptionSelect = (option: string) => {
+    addMessage(option, MessageRole.USER);
+    sendMessage(option);
+    
+    const nextQuestion = getNextQuestion(currentQuestion, option);
+    const botResponse = getBotResponse(currentQuestion, option);
+    
+    if (botResponse) {
+      setTimeout(() => {
+        addMessage(botResponse, MessageRole.BOT);
+      }, 500);
+    }
+    
+    if (nextQuestion === 'complete' && !hasSubmittedFinal) {
+      setHasSubmittedFinal(true);
+      setIsRefining(true);
+      
+      const completeInputs = {
+        ...userInputs,
+        [currentQuestion]: parseInt(option, 10)
+      };
+
+      setTimeout(() => {
+        sendGeminiPrompt(completeInputs);
+      }, 1500);
+    }
+    
+    setCurrentQuestion(nextQuestion);
+    setInputValue('');
+  };
+
   const renderOptions = () => {
-   
     if (!options) {
       return (
-        <div className="text-center text-gray-500 py-2">
+        <div className="text-center text-gray-500 dark:text-gray-400 py-2">
           Loading options...
         </div>
       );
     }
 
-   
-    if (currentQuestion === 'complete') {
+    if (isRefining) {
       return (
-        <div className="text-center text-gray-500 py-2">
-          {hasSubmittedFinal ? 
-            "Processing your gift recommendations..." : 
-            "All inputs complete. Generating recommendations..."}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            ref={inputRef}
+            value={inputValue}
+            onChange={handleInputChange}
+            onKeyDown={handleInputKeyDown}
+            placeholder="Ask for more specific suggestions or refined ideas..."
+            className="flex-1 p-2 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          />
+          <Button onClick={handleRefinementSubmit} disabled={!inputValue.trim()}>
+            Send
+          </Button>
         </div>
       );
     }
 
+    if (currentQuestion === 'complete') {
+      return (
+        <div className="text-center text-gray-500 dark:text-gray-400 py-2">
+          Generating gift recommendations...
+        </div>
+      );
+    }
 
     if (currentQuestion === 'age') {
       return (
@@ -213,7 +231,6 @@ const ChatInput: React.FC = () => {
       );
     }
 
-  
     const currentOptions = options[currentQuestion] || defaultOptions[currentQuestion] || [];
     
     if (currentOptions.length === 0) {
@@ -240,11 +257,10 @@ const ChatInput: React.FC = () => {
     );
   };
 
-
   if (!connected && currentQuestion !== 'complete') {
     return (
-      <div className="border-t border-gray-200 p-4 bg-white">
-        <div className="text-center text-orange-600 py-2">
+      <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
+        <div className="text-center text-orange-600 dark:text-orange-400 py-2">
           <p>Connecting to server... If this persists, please refresh the page.</p>
           <Button
             onClick={() => window.location.reload()}
@@ -259,7 +275,7 @@ const ChatInput: React.FC = () => {
   }
 
   return (
-    <div className="border-t border-gray-200 p-4 bg-white">
+    <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
       <div className="space-y-4">
         {renderOptions()}
       </div>

@@ -43,7 +43,7 @@ const AboutSection: React.FC = () => {
     <section id="about" className="py-20 bg-gray-50">
       <div className="container mx-auto px-6">
         <div className="flex flex-col lg:flex-row items-center gap-12">
-      
+          {/* Left Column - Image */}
           <motion.div
             ref={ref}
             initial={{ opacity: 0, scale: 0.9 }}
@@ -61,7 +61,7 @@ const AboutSection: React.FC = () => {
             </div>
           </motion.div>
 
-        
+          {/* Right Column - Content */}
           <div className="lg:w-1/2">
             <motion.div
               initial={{ opacity: 0, y: 20 }}

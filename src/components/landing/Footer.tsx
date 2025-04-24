@@ -7,7 +7,7 @@ const Footer: React.FC = () => {
     <footer className="bg-gray-900 text-white">
       <div className="container mx-auto px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          
+          {/* Brand Column */}
           <div>
             <Link to="/" className="flex items-center gap-2 mb-4">
               <div className="p-1.5 bg-primary-500 rounded-lg">
@@ -23,7 +23,7 @@ const Footer: React.FC = () => {
             </p>
           </div>
 
-          
+          {/* Quick Links */}
           <div>
             <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2">
@@ -50,11 +50,11 @@ const Footer: React.FC = () => {
             </ul>
           </div>
 
-          
+          {/* Connect */}
           <div>
             <h3 className="text-lg font-semibold mb-4">Connect</h3>
             <a 
-              href="https://github.com/Vaibhavkulshrestha12"
+              href="https://github.com"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-gray-400 hover:text-primary-400 transition-colors mb-3"
@@ -63,7 +63,7 @@ const Footer: React.FC = () => {
               <span>GitHub</span>
             </a>
             <p className="text-gray-400 mt-6 flex items-center gap-1">
-              Made with <Heart size={16} className="text-primary-500" /> by vaibhav
+              Made with <Heart size={16} className="text-primary-500" /> in India
             </p>
           </div>
         </div>

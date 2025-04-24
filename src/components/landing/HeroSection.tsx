@@ -7,7 +7,7 @@ import Button from '../ui/Button';
 const HeroSection: React.FC = () => {
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-b from-primary-50 to-white">
-      
+      {/* Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-20 -right-20 w-80 h-80 bg-primary-100 rounded-full opacity-30 blur-3xl"></div>
         <div className="absolute top-40 -left-20 w-60 h-60 bg-secondary-100 rounded-full opacity-30 blur-3xl"></div>
@@ -16,7 +16,7 @@ const HeroSection: React.FC = () => {
 
       <div className="container mx-auto px-6 py-12 relative z-10">
         <div className="flex flex-col lg:flex-row items-center justify-between gap-12">
-        
+          {/* Text Content */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -47,7 +47,7 @@ const HeroSection: React.FC = () => {
             </div>
           </motion.div>
 
-          
+          {/* 3D Gift Box Illustration */}
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -73,7 +73,7 @@ const HeroSection: React.FC = () => {
           </motion.div>
         </div>
 
-        
+        {/* Scroll Down Indicator */}
         <motion.div 
           className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center"
           animate={{ y: [0, 10, 0] }}

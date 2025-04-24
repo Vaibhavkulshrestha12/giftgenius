@@ -11,7 +11,7 @@ const ChatWindow: React.FC = () => {
   }, [messages, isBotTyping]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 bg-white/80 backdrop-blur-sm">
+    <div className="flex-1 overflow-y-auto p-4 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
       <div className="max-w-3xl mx-auto">
         {messages.map((message) => (
           <ChatBubble

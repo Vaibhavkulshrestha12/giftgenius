@@ -6,19 +6,33 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-
 const app = express();
 const server = http.createServer(app);
+
+app.use(express.json());
+
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 const io = new Server(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST']
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization']
   },
-  pingTimeout: 120000, 
-  pingInterval: 25000, 
-  transports: ['polling', 'websocket'] 
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling'],
+  allowUpgrades: true,
+  path: '/socket.io'
 });
-
 
 const API_KEY = process.env.GEMINI_API_KEY;
 if (!API_KEY) {
@@ -32,194 +46,209 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 const predefinedOptions = {
   gender: ['Male', 'Female', 'Other'],
   relationship: ['Friend', 'Partner', 'Parent', 'Sibling', 'Colleague', 'Other'],
- 
 };
 
-
 const activeConnections = new Map();
+const conversationHistory = new Map();
 
 const generateGeminiPrompt = async (userInputs) => {
-  console.log('Generating Gemini prompt for inputs:', userInputs);
-  
   try {
-  
+    // Validate all required inputs
     if (!userInputs.gender || !userInputs.relationship || 
-        userInputs.age === undefined || userInputs.budget === undefined) {
-      throw new Error('Missing required user inputs');
+        typeof userInputs.age !== 'number' || typeof userInputs.budget !== 'number') {
+      throw new Error('Missing or invalid user inputs');
     }
+
+    // Ensure positive numbers for age and budget
+    if (userInputs.age <= 0 || userInputs.budget <= 0) {
+      throw new Error('Age and budget must be positive numbers');
+    }
+
+    const socketId = userInputs.socketId;
+    let history = conversationHistory.get(socketId) || [];
     
-    const prompt = `Act as a gift recommendation expert for the Indian market. Suggest thoughtful and personalized gifts for a ${userInputs.gender} who is my ${userInputs.relationship}, aged ${userInputs.age}, with a budget of ₹${userInputs.budget}.
+    // If this is a refinement request, add the user's follow-up question
+    if (userInputs.refinement) {
+      history.push({
+        role: "user",
+        parts: [{ text: userInputs.refinement }]
+      });
+    }
 
-  Consider the following:
-  - All suggestions must be available in India
-  - Stay within the specified budget of ₹${userInputs.budget}
-  - Consider age-appropriate items
-  - Include a mix of practical and sentimental options
-  - Suggest specific brands and where to buy them
-  - Focus on items available both online and in physical stores
+    // Initialize history if empty
+    if (history.length === 0) {
+      const systemPrompt = {
+        role: "model",
+        parts: [{ text: `You are GiftGenius, an expert gift recommendation assistant for the Indian market. You provide thoughtful, personalized gift suggestions. You maintain a friendly, helpful tone and structure your responses in an easy-to-read format.` }]
+      };
+      history.push(systemPrompt);
+    }
 
-  Format your response as follows:
-  1. First suggestion (include store/website)
-  2. Second suggestion (include store/website)
-  3. Third suggestion (include store/website)
+    // Create the main prompt or use refinement
+    let promptText;
+    if (!userInputs.refinement) {
+      promptText = `I need gift recommendations for a ${userInputs.age}-year-old ${userInputs.gender.toLowerCase()} who is my ${userInputs.relationship.toLowerCase()} in India. My budget is ₹${userInputs.budget}.
 
-  End with a brief note about why these suggestions would be meaningful.`;
+Please provide 5 gift suggestions that are:
+- Available in India (mention specific Indian stores or websites)
+- Within my budget of ₹${userInputs.budget}
+- Age-appropriate for a ${userInputs.age}-year-old
+- A mix of practical and sentimental options
+
+Format your response like this:
+## Gift Suggestion 1: [Name of Item]
+* **Price Range:** ₹[price] to ₹[price]
+* **Where to Buy:** [Store/Website with hyperlink if online]
+* **Why It's Perfect:** [Brief explanation]
+
+## Gift Suggestion 2: [Name of Item]
+...and so on.
+
+End with a brief summary of why these would be meaningful gifts for my ${userInputs.relationship.toLowerCase()}.`;
+    } else {
+      // The refinement request is already in the history, so we don't need separate prompt text
+      promptText = "";
+    }
+
+    // Add the new prompt to history if it's not a refinement or if it's the first refinement
+    if (promptText) {
+      history.push({
+        role: "user",
+        parts: [{ text: promptText }]
+      });
+    }
 
     console.log('Sending prompt to Gemini API');
     
-    const generationConfig = {
-      temperature: 0.7,
-      topK: 40,
-      topP: 0.95,
-      maxOutputTokens: 800,
-    };
-    
-    const safetySettings = [
-      {
-        category: "HARM_CATEGORY_HARASSMENT",
-        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-      },
-      {
-        category: "HARM_CATEGORY_HATE_SPEECH",
-        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-      },
-      {
-        category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-      },
-      {
-        category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-      }
-    ];
-    
+    // Generate content with history for context
     const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig,
-      safetySettings
+      contents: history,
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 2048,
+      }
     });
-    
+
+    if (!result) {
+      throw new Error('No response from Gemini API');
+    }
+
     const response = await result.response;
+    if (!response) {
+      throw new Error('Empty response from Gemini API');
+    }
+
     const text = response.text();
+    if (!text) {
+      throw new Error('Empty text in Gemini response');
+    }
+
+    // Add response to conversation history
+    history.push({
+      role: "model",
+      parts: [{ text: text }]
+    });
+
+    // Save updated history
+    conversationHistory.set(socketId, history);
+
     console.log('Received Gemini response:', text.substring(0, 100) + '...');
     return text;
   } catch (error) {
     console.error('Error generating Gemini response:', error);
-    return `Sorry, I couldn't generate gift suggestions at this time. Error: ${error.message || 'Unknown error'}. Please try again.`;
+    throw error;
   }
 };
-
-
-const generateFallbackSuggestions = (userInputs) => {
-  const { gender, relationship, age, budget } = userInputs;
-  
-  let suggestions = `Based on your inputs (${gender}, ${relationship}, age ${age}, budget ₹${budget}), here are some gift suggestions:\n\n`;
-  
-  if (gender === 'Female') {
-    suggestions += `1. Handcrafted Jewelry Set - A beautiful necklace and earring combo available at Tanishq (₹${Math.min(budget, 1500)})\n`;
-    suggestions += `2. Personalized Photo Frame with a heartfelt message from Amazon.in (₹${Math.min(budget, 800)})\n`;
-    suggestions += `3. Scented Candle Gift Set from Bath & Body Works (₹${Math.min(budget, 1200)})\n`;
-  } else {
-    suggestions += `1. Premium Leather Wallet from Hidesign (₹${Math.min(budget, 1500)})\n`;
-    suggestions += `2. Wireless Bluetooth Earbuds from Boat on Flipkart (₹${Math.min(budget, 1800)})\n`;
-    suggestions += `3. Customized Name Keychain from Giftsmate.com (₹${Math.min(budget, 500)})\n`;
-  }
-  
-  suggestions += `\nThese gifts are thoughtful options that show you care while staying within your budget. They combine practicality with a personal touch, making them perfect for your ${relationship}.`;
-  
-  return suggestions;
-};
-
 
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
-  activeConnections.set(socket.id, { connectedAt: new Date() });
-  
+  activeConnections.set(socket.id, { 
+    connectedAt: new Date(),
+    lastActivity: new Date()
+  });
   
   socket.emit('options', predefinedOptions);
-  console.log(`Sent options to user ${socket.id}`);
 
-  
-  socket.on('request-options', () => {
-    if (activeConnections.has(socket.id)) {
-      socket.emit('options', predefinedOptions);
-      console.log(`Re-sent options to user ${socket.id} upon request`);
+  const keepAliveInterval = setInterval(() => {
+    if (socket.connected) {
+      socket.emit('ping');
+    }
+  }, 20000);
+
+  socket.on('pong', () => {
+    const connection = activeConnections.get(socket.id);
+    if (connection) {
+      connection.lastActivity = new Date();
     }
   });
 
+  socket.on('request-options', () => {
+    socket.emit('options', predefinedOptions);
+  });
+
   socket.on('user-message', (message) => {
-    if (activeConnections.has(socket.id)) {
-      console.log(`User ${socket.id} sent message:`, message);
-    }
+    console.log(`User ${socket.id} sent message:`, message);
   });
 
   socket.on('gemini-prompt', async (userInputs) => {
     try {
-      if (!activeConnections.has(socket.id)) {
-        console.log(`User ${socket.id} disconnected before processing prompt`);
-        return;
-      }
-      
-      console.log(`User ${socket.id} sent inputs for Gemini:`, userInputs);
+      console.log(`Processing Gemini prompt for ${socket.id}:`, userInputs);
       socket.emit('typing-start');
       
-     
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('API request timed out')), 15000)
-      );
+      // Add socket ID to inputs for conversation tracking
+      const response = await generateGeminiPrompt({
+        ...userInputs,
+        socketId: socket.id
+      });
       
-      let response;
-      try {
-        
-        response = await Promise.race([
-          generateGeminiPrompt(userInputs),
-          timeoutPromise
-        ]);
-      } catch (error) {
-        console.warn(`API request failed or timed out for ${socket.id}:`, error.message);
-       
-        response = generateFallbackSuggestions(userInputs);
-      }
-      
-      
-      if (activeConnections.has(socket.id) && socket.connected) {
-        console.log(`Sending response to user ${socket.id}`);
-        socket.emit('bot-message', response);
-      } else {
-        console.log(`User ${socket.id} disconnected before receiving response`);
-      }
+      socket.emit('bot-message', response);
     } catch (error) {
       console.error(`Error processing prompt for ${socket.id}:`, error);
-      
-      
-      if (activeConnections.has(socket.id) && socket.connected) {
-        socket.emit('typing-end');
-        socket.emit('bot-message', `Sorry, I encountered an error while processing your request. Please try again.`);
-      }
+      socket.emit('bot-message', `Sorry, I couldn't generate gift suggestions. ${error.message}`);
+    } finally {
+      socket.emit('typing-end');
     }
-  });
-
-  
-  socket.on('ping-server', () => {
-    socket.emit('pong-client');
   });
 
   socket.on('disconnect', (reason) => {
     console.log(`User disconnected (${reason}):`, socket.id);
+    clearInterval(keepAliveInterval);
     activeConnections.delete(socket.id);
+    // Keep conversation history for a potential reconnect
+  });
+
+  socket.on('error', (error) => {
+    console.error(`Socket error for ${socket.id}:`, error);
   });
 });
 
+setInterval(() => {
+  const now = new Date();
+  for (const [id, connection] of activeConnections.entries()) {
+    if (now.getTime() - connection.lastActivity.getTime() > 300000) {
+      const socket = io.sockets.sockets.get(id);
+      if (socket) {
+        socket.disconnect(true);
+      }
+      activeConnections.delete(id);
+      // Clean up conversation history for disconnected users
+      conversationHistory.delete(id);
+    }
+  }
+}, 60000);
 
 app.get('/health', (req, res) => {
-  const activeUsers = activeConnections.size;
-  res.status(200).send(`Server is running with ${activeUsers} active connections`);
+  res.status(200).json({
+    status: 'healthy',
+    connections: activeConnections.size,
+    uptime: process.uptime()
+  });
 });
-
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Visit http://localhost:${PORT}/health to check server status`);
-  console.log('Waiting for socket connections...');
+  console.log(`Health check available at http://localhost:${PORT}/health`);
 });
