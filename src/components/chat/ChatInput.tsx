@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, } from 'react';
 import Button from '../ui/Button';
 import { useChat } from '../../context/ChatContext';
 import { useSocket } from '../../context/SocketContext';
 import { MessageRole, Gender, Relationship } from '../../types';
 
 interface OptionType {
+  gender: string[];
+  relationship: string[];
   [key: string]: string[];
 }
 
@@ -17,7 +19,7 @@ const ChatInput: React.FC = () => {
   const { addMessage, userInputs, updateUserInputs, currentQuestion, setCurrentQuestion } = useChat();
   const { socket, connected, sendMessage, sendGeminiPrompt } = useSocket();
 
-  const defaultOptions = {
+  const defaultOptions: OptionType = {
     gender: ['Male', 'Female', 'Other'],
     relationship: ['Friend', 'Partner', 'Parent', 'Sibling', 'Colleague', 'Other'],
   };
@@ -37,7 +39,7 @@ const ChatInput: React.FC = () => {
         socket.off('options', handleOptions);
       };
     }
-  }, [socket]);
+  }, [socket, options, defaultOptions]);
 
   useEffect(() => {
     if (currentQuestion === 'age' || currentQuestion === 'budget') {
@@ -46,11 +48,6 @@ const ChatInput: React.FC = () => {
       }, 100);
     }
   }, [currentQuestion]);
-
-  const resetChat = useCallback(() => {
-    setHasSubmittedFinal(false);
-    setCurrentQuestion('gender');
-  }, [setCurrentQuestion]);
 
   const getNextQuestion = (currentQ: string, userInput: string): string => {
     switch (currentQ) {
@@ -129,7 +126,6 @@ const ChatInput: React.FC = () => {
     sendMessage(inputValue);
     setInputValue('');
     
-    // Send the refinement request to Gemini
     sendGeminiPrompt({
       ...userInputs,
       refinement: inputValue
@@ -203,13 +199,13 @@ const ChatInput: React.FC = () => {
       );
     }
 
-    if (currentQuestion === 'age') {
+    if (currentQuestion === 'age' || currentQuestion === 'budget') {
       return (
         <input
           ref={inputRef}
           type="number"
-          placeholder="Enter age"
-          className="w-full p-2 border rounded"
+          placeholder={currentQuestion === 'age' ? "Enter age" : "Enter budget in ₹"}
+          className="w-full p-2 border rounded dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleInputKeyDown}
@@ -217,21 +213,7 @@ const ChatInput: React.FC = () => {
       );
     }
 
-    if (currentQuestion === 'budget') {
-      return (
-        <input
-          ref={inputRef}
-          type="number"
-          placeholder="Enter budget in ₹"
-          className="w-full p-2 border rounded"
-          value={inputValue}
-          onChange={handleInputChange}
-          onKeyDown={handleInputKeyDown}
-        />
-      );
-    }
-
-    const currentOptions = options[currentQuestion] || defaultOptions[currentQuestion] || [];
+    const currentOptions = options[currentQuestion] || [];
     
     if (currentOptions.length === 0) {
       return (

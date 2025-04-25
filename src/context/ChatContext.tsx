@@ -31,7 +31,7 @@ const defaultContext: ChatContextType = {
   setCurrentConversation: () => {}
 };
 
-const ChatContext = createContext<ChatContextType>(defaultContext);
+export const ChatContext = createContext<ChatContextType>(defaultContext);
 
 export const useChat = () => useContext(ChatContext);
 

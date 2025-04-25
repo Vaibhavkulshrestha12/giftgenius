@@ -1,3 +1,31 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.markdown-content {
+  @apply text-sm md:text-base;
+}
+
+.markdown-content h2 {
+  @apply text-lg font-semibold mt-4 mb-2;
+}
+
+.markdown-content p {
+  @apply mb-2;
+}
+
+.markdown-content ul {
+  @apply list-disc ml-4 mb-2;
+}
+
+.markdown-content li {
+  @apply mb-1;
+}
+
+.markdown-content a {
+  @apply underline hover:opacity-80;
+}
+
+.markdown-content strong {
+  @apply font-semibold;
+}

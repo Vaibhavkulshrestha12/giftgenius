@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useChat } from './ChatContext';
-import { MessageRole } from '../types';
+import { MessageRole, UserInputs } from '../types';
 
 interface SocketContextType {
   socket: Socket | null;
   connected: boolean;
   sendMessage: (message: string) => void;
-  sendGeminiPrompt: (userInputs: any) => void;
+  sendGeminiPrompt: (userInputs: UserInputs & { refinement?: string }) => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -25,9 +25,8 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const { addMessage, setIsBotTyping } = useChat();
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
-  const pendingPromptRef = useRef<any>(null);
+  const pendingPromptRef = useRef<UserInputs & { refinement?: string } | null>(null);
 
-  // Stable message handlers
   const handleBotMessage = useCallback((message: string) => {
     setIsBotTyping(false);
     addMessage(message, MessageRole.BOT);
@@ -51,7 +50,6 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setConnected(true);
       reconnectAttempts.current = 0;
 
-      // Process any pending prompt
       if (pendingPromptRef.current) {
         socketClient.emit('gemini-prompt', pendingPromptRef.current);
         pendingPromptRef.current = null;
@@ -90,7 +88,7 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       socketClient.off('typing-end', handleTypingEnd);
       socketClient.disconnect();
     };
-  }, []); // Empty dependency array for single socket instance
+  }, [handleBotMessage, handleTypingStart, handleTypingEnd]);
 
   const sendMessage = useCallback((message: string) => {
     if (socket?.connected) {
@@ -101,14 +99,12 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [socket]);
 
-  const sendGeminiPrompt = useCallback((userInputs: any) => {
-    // Make sure we have all required fields for a new prompt
+  const sendGeminiPrompt = useCallback((userInputs: UserInputs & { refinement?: string }) => {
     const promptData = {
       gender: userInputs.gender,
       relationship: userInputs.relationship,
       age: userInputs.age,
       budget: userInputs.budget,
-      // Add the refinement field if it exists
       ...(userInputs.refinement && { refinement: userInputs.refinement })
     };
 
