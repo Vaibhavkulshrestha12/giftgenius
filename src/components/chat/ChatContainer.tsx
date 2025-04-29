@@ -95,7 +95,7 @@ const ChatContainer: React.FC = () => {
             >
               <Menu size={20} className="text-gray-600" />
             </button>
-            <h1 className="text-lg font-semibold text-gray-800">GiftGenius</h1>
+            <h1 className="text-lg font-semibold text-gray-800">GiftGenie</h1>
           </div>
         </header>
 

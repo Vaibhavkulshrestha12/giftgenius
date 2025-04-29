@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useInView } from 'react-intersection-observer';
 import { Heart, Gift, Zap, MapPin } from 'lucide-react';
+import gift from "../../assets/gift.jpg";
 
 const FeatureItem: React.FC<{
   icon: React.ReactNode;
@@ -54,7 +55,7 @@ const AboutSection: React.FC = () => {
             <div className="relative">
               <div className="absolute -top-5 -left-5 w-full h-full rounded-2xl bg-primary-200 transform rotate-3"></div>
               <img 
-                src="https://images.pexels.com/photos/5699514/pexels-photo-5699514.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940" 
+                src={gift}
                 alt="People exchanging gifts" 
                 className="relative z-10 rounded-2xl shadow-lg w-full h-auto object-cover"
               />

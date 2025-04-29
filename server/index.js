@@ -97,7 +97,7 @@ const generateGeminiPrompt = async (userInputs) => {
       if (history.length === 0) {
         const systemPrompt = {
           role: "model",
-          parts: [{ text: `You are GiftGenius, an expert gift recommendation assistant for the Indian market. You provide thoughtful, personalized gift suggestions. You maintain a friendly, helpful tone and structure your responses in an easy-to-read format.` }]
+          parts: [{ text: `You are GiftGenie, an expert gift recommendation assistant for the Indian market. You provide thoughtful, personalized gift suggestions. You maintain a friendly, helpful tone and structure your responses in an easy-to-read format.` }]
         };
         history.push(systemPrompt);
       }

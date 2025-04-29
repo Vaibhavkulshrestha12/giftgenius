@@ -13,7 +13,7 @@ const Footer: React.FC = () => {
               <div className="p-1.5 bg-primary-500 rounded-lg">
                 <Gift size={20} className="text-white" />
               </div>
-              <span className="text-xl font-bold">GiftGenius</span>
+              <span className="text-xl font-bold">GiftGenie</span>
             </Link>
             <p className="text-gray-400 mb-4">
               Discover the perfect gift for your loved ones with our AI-powered recommendation system.
@@ -54,7 +54,7 @@ const Footer: React.FC = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">Connect</h3>
             <a 
-              href="https://github.com"
+              href="https://github.com/Vaibhavkulshrestha12"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-gray-400 hover:text-primary-400 transition-colors mb-3"

@@ -33,7 +33,7 @@ const Navbar: React.FC = () => {
               <div className="p-1.5 bg-primary-500 rounded-lg">
                 <Gift size={20} className="text-white" />
               </div>
-              <span className="font-bold text-xl text-gray-900">GiftGenius</span>
+              <span className="font-bold text-xl text-gray-900">GiftGenie</span>
             </Link>
 
             {/* Desktop Navigation */}

@@ -17,7 +17,7 @@ const ChatPage: React.FC = () => {
               <div className="p-1.5 bg-primary-500 rounded-lg">
                 <Gift size={18} className="text-white" />
               </div>
-              <span className="font-bold text-lg hidden sm:block">GiftGenius</span>
+              <span className="font-bold text-lg hidden sm:block">GiftGenie</span>
             </Link>
           </div>
           <ProfileDropdown />
