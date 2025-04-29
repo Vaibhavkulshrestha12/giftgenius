@@ -90,6 +90,7 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
   }, [handleBotMessage, handleTypingStart, handleTypingEnd]);
 
+  // This function now only sends actual message data when in refinement mode
   const sendMessage = useCallback((message: string) => {
     if (socket?.connected) {
       socket.emit('user-message', message);
@@ -99,6 +100,7 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [socket]);
 
+  // This function sends the complete user inputs data to Gemini
   const sendGeminiPrompt = useCallback((userInputs: UserInputs & { refinement?: string }) => {
     const promptData = {
       gender: userInputs.gender,
@@ -110,7 +112,14 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     if (socket?.connected) {
       setIsBotTyping(true);
-      socket.emit('gemini-prompt', promptData);
+      
+      if (userInputs.refinement) {
+        // This is a refinement request
+        socket.emit('gemini-refinement', userInputs.refinement);
+      } else {
+        // This is the initial prompt with all collected data
+        socket.emit('gemini-prompt', promptData);
+      }
     } else {
       handleBotMessage('Connection lost. Reconnecting...');
       pendingPromptRef.current = promptData;

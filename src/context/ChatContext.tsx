@@ -59,6 +59,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setConversations(prev => [newConversation, ...prev]);
     setCurrentConversationState(newConversation);
     setCurrentQuestion('gender');
+    setIsBotTyping(false);
   }, []);
 
   React.useEffect(() => {

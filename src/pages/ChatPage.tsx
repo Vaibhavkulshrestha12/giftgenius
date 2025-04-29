@@ -2,6 +2,7 @@ import React from 'react';
 import ChatContainer from '../components/chat/ChatContainer';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Gift } from 'lucide-react';
+import ProfileDropdown from '../components/ui/ProfileDropdown';
 
 const ChatPage: React.FC = () => {
   return (
@@ -19,16 +20,7 @@ const ChatPage: React.FC = () => {
               <span className="font-bold text-lg hidden sm:block">GiftGenius</span>
             </Link>
           </div>
-          <div>
-            <a 
-              href="https://github.com" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm text-gray-600 hover:text-primary-600 transition-colors"
-            >
-              GitHub
-            </a>
-          </div>
+          <ProfileDropdown />
         </div>
       </header>
       <main className="flex-1 overflow-hidden">
@@ -38,4 +30,4 @@ const ChatPage: React.FC = () => {
   );
 };
 
-export default ChatPage;
+export default ChatPage

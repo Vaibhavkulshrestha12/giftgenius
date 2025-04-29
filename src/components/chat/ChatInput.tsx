@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Button from '../ui/Button';
 import { useChat } from '../../context/ChatContext';
 import { useSocket } from '../../context/SocketContext';
@@ -30,6 +30,8 @@ const ChatInput: React.FC = () => {
     }
     
     if (socket) {
+      socket.emit('request-options');
+      
       const handleOptions = (receivedOptions: OptionType) => {
         setOptions(receivedOptions);
       };
@@ -125,20 +127,16 @@ const ChatInput: React.FC = () => {
     addMessage(inputValue, MessageRole.USER);
     sendMessage(inputValue);
     setInputValue('');
-    
-    sendGeminiPrompt({
-      ...userInputs,
-      refinement: inputValue
-    });
   };
 
   const handleOptionSelect = (option: string) => {
+    // Add the user's selection as a message (visual only)
     addMessage(option, MessageRole.USER);
-    sendMessage(option);
     
     const nextQuestion = getNextQuestion(currentQuestion, option);
     const botResponse = getBotResponse(currentQuestion, option);
     
+    // Add the bot's response
     if (botResponse) {
       setTimeout(() => {
         addMessage(botResponse, MessageRole.BOT);
@@ -146,17 +144,28 @@ const ChatInput: React.FC = () => {
     }
     
     if (nextQuestion === 'complete' && !hasSubmittedFinal) {
+      const budgetNum = parseInt(option, 10);
+      updateUserInputs({ budget: budgetNum });
+      
       setHasSubmittedFinal(true);
       setIsRefining(true);
       
-      const completeInputs = {
-        ...userInputs,
-        [currentQuestion]: parseInt(option, 10)
-      };
-
+      // Now we send the complete data to Gemini
       setTimeout(() => {
-        sendGeminiPrompt(completeInputs);
-      }, 1500);
+        sendGeminiPrompt({
+          gender: userInputs.gender,
+          relationship: userInputs.relationship,
+          age: userInputs.age,
+          budget: budgetNum
+        });
+      }, 1000);
+    } else {
+      if (currentQuestion === 'age') {
+        const ageNum = parseInt(option, 10);
+        if (!isNaN(ageNum) && ageNum > 0) {
+          updateUserInputs({ age: ageNum });
+        }
+      }
     }
     
     setCurrentQuestion(nextQuestion);
@@ -166,7 +175,7 @@ const ChatInput: React.FC = () => {
   const renderOptions = () => {
     if (!options) {
       return (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-2">
+        <div className="text-center text-gray-500 py-2">
           Loading options...
         </div>
       );
@@ -182,7 +191,7 @@ const ChatInput: React.FC = () => {
             onChange={handleInputChange}
             onKeyDown={handleInputKeyDown}
             placeholder="Ask for more specific suggestions or refined ideas..."
-            className="flex-1 p-2 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            className="flex-1 p-2 border rounded-lg bg-white text-gray-900"
           />
           <Button onClick={handleRefinementSubmit} disabled={!inputValue.trim()}>
             Send
@@ -193,7 +202,7 @@ const ChatInput: React.FC = () => {
 
     if (currentQuestion === 'complete') {
       return (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-2">
+        <div className="text-center text-gray-500 py-2">
           Generating gift recommendations...
         </div>
       );
@@ -205,7 +214,7 @@ const ChatInput: React.FC = () => {
           ref={inputRef}
           type="number"
           placeholder={currentQuestion === 'age' ? "Enter age" : "Enter budget in ₹"}
-          className="w-full p-2 border rounded dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          className="w-full p-2 border rounded bg-white text-gray-900"
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleInputKeyDown}
@@ -241,8 +250,8 @@ const ChatInput: React.FC = () => {
 
   if (!connected && currentQuestion !== 'complete') {
     return (
-      <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
-        <div className="text-center text-orange-600 dark:text-orange-400 py-2">
+      <div className="border-t border-gray-200 p-4 bg-white">
+        <div className="text-center text-orange-600 py-2">
           <p>Connecting to server... If this persists, please refresh the page.</p>
           <Button
             onClick={() => window.location.reload()}
@@ -257,7 +266,7 @@ const ChatInput: React.FC = () => {
   }
 
   return (
-    <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
+    <div className="border-t border-gray-200 p-4 bg-white">
       <div className="space-y-4">
         {renderOptions()}
       </div>

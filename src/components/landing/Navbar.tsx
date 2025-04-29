@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Gift, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ThemeToggle from '../ui/ThemeToggle';
+import ProfileDropdown from '../ui/ProfileDropdown';
+import { useAuth } from '../../context/AuthContext';
 
 const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -21,7 +23,7 @@ const Navbar: React.FC = () => {
     <>
       <nav
         className={`fixed w-full z-50 transition-all duration-300 ${
-          isScrolled ? 'bg-white dark:bg-gray-900 shadow-md py-2' : 'bg-transparent py-4'
+          isScrolled ? 'bg-white shadow-md py-2' : 'bg-transparent py-4'
         }`}
       >
         <div className="container mx-auto px-6">
@@ -31,34 +33,45 @@ const Navbar: React.FC = () => {
               <div className="p-1.5 bg-primary-500 rounded-lg">
                 <Gift size={20} className="text-white" />
               </div>
-              <span className="font-bold text-xl text-gray-900 dark:text-white">GiftGenius</span>
+              <span className="font-bold text-xl text-gray-900">GiftGenius</span>
             </Link>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
-              <a href="#about" className="text-gray-700 dark:text-gray-300 hover:text-primary-500 dark:hover:text-primary-400 transition-colors">
+              <a href="#about" className="text-gray-700 hover:text-primary-500 transition-colors">
                 About
               </a>
-              <a href="#tech" className="text-gray-700 dark:text-gray-300 hover:text-primary-500 dark:hover:text-primary-400 transition-colors">
+              <a href="#tech" className="text-gray-700 hover:text-primary-500 transition-colors">
                 Technology
               </a>
-              <ThemeToggle />
-              <Link
-                to="/chat"
-                className="bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors"
-              >
-                Start Chat
-              </Link>
+              {currentUser ? (
+                <>
+                  <Link
+                    to="/chat"
+                    className="bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors"
+                  >
+                    Open Chat
+                  </Link>
+                  <ProfileDropdown />
+                </>
+              ) : (
+                <Link
+                  to="/signin"
+                  className="bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors"
+                >
+                  Sign In
+                </Link>
+              )}
             </div>
 
             {/* Mobile Menu Button */}
             <div className="md:hidden flex items-center gap-4">
-              <ThemeToggle />
+              {currentUser && <ProfileDropdown />}
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="p-2"
               >
-                {isMobileMenuOpen ? <X size={24} className="text-gray-800 dark:text-gray-200" /> : <Menu size={24} className="text-gray-800 dark:text-gray-200" />}
+                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
             </div>
           </div>
@@ -71,30 +84,40 @@ const Navbar: React.FC = () => {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-white dark:bg-gray-800 border-t dark:border-gray-700 mt-2"
+              className="md:hidden bg-white border-t mt-2"
             >
               <div className="container mx-auto px-6 py-4 flex flex-col gap-4">
                 <a
                   href="#about"
-                  className="text-gray-700 dark:text-gray-300 hover:text-primary-500 dark:hover:text-primary-400 transition-colors py-2"
+                  className="text-gray-700 hover:text-primary-500 transition-colors py-2"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   About
                 </a>
                 <a
                   href="#tech"
-                  className="text-gray-700 dark:text-gray-300 hover:text-primary-500 dark:hover:text-primary-400 transition-colors py-2"
+                  className="text-gray-700 hover:text-primary-500 transition-colors py-2"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Technology
                 </a>
-                <Link
-                  to="/chat"
-                  className="bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors text-center"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Start Chat
-                </Link>
+                {currentUser ? (
+                  <Link
+                    to="/chat"
+                    className="bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors text-center"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Open Chat
+                  </Link>
+                ) : (
+                  <Link
+                    to="/signin"
+                    className="bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors text-center"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Sign In
+                  </Link>
+                )}
               </div>
             </motion.div>
           )}
