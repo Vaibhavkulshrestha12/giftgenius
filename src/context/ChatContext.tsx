@@ -47,7 +47,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       messages: [
         {
           id: Date.now().toString(),
-          content: "Hi there! I'm GiftGenius, your AI gift recommendation assistant. I can help you find the perfect gift for your special someone in India. Let's get started! Is the gift recipient male, female, or other?",
+          content: "Hi there! I'm GiftGenie, your AI gift recommendation assistant. I can help you find the perfect gift for your special someone in India. Let's get started! Is the gift recipient male, female, or other?",
           role: MessageRole.BOT,
           timestamp: new Date()
         }
