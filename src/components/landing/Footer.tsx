@@ -19,7 +19,7 @@ const Footer: React.FC = () => {
               Discover the perfect gift for your loved ones with our AI-powered recommendation system.
             </p>
             <p className="text-sm text-gray-500">
-              &copy; {new Date().getFullYear()} GiftGenius. All rights reserved.
+              &copy; {new Date().getFullYear()} GiftGenie. All rights reserved.
             </p>
           </div>
 
