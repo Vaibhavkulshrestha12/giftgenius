@@ -3,16 +3,25 @@ import http from 'node:http';
 import { Server } from 'socket.io';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
 
 app.use(express.json());
 
+const corsOrigin = process.env.NODE_ENV === 'production' 
+  ? [process.env.FRONTEND_URL || '*'] 
+  : '*';
+
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Origin', corsOrigin);
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') {
@@ -23,7 +32,7 @@ app.use((req, res, next) => {
 
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: corsOrigin,
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type', 'Authorization']
   },
@@ -316,6 +325,11 @@ setInterval(() => {
   }
 }, 60000);
 
+// Serve static files from the React app
+const clientBuildPath = path.join(__dirname, '../dist');
+console.log(`Serving static files from: ${clientBuildPath}`);
+app.use(express.static(clientBuildPath));
+
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -323,6 +337,11 @@ app.get('/health', (req, res) => {
     authenticatedUsers: authenticatedUsers.size,
     uptime: process.uptime()
   });
+});
+
+// After all your other routes, add a catch-all route handler
+app.get('*', (req, res) => {
+  res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3001;

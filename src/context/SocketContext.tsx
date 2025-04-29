@@ -36,7 +36,13 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const handleTypingEnd = useCallback(() => setIsBotTyping(false), [setIsBotTyping]);
 
   useEffect(() => {
-    const socketClient = io('http://localhost:3001', {
+    const socketURL = import.meta.env.PROD 
+      ? window.location.origin
+      : 'http://localhost:3001';
+    
+    console.log('Connecting to socket server at:', socketURL);
+    
+    const socketClient = io(socketURL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: maxReconnectAttempts,
@@ -90,7 +96,6 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
   }, [handleBotMessage, handleTypingStart, handleTypingEnd]);
 
-  // This function now only sends actual message data when in refinement mode
   const sendMessage = useCallback((message: string) => {
     if (socket?.connected) {
       socket.emit('user-message', message);
@@ -100,7 +105,6 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [socket]);
 
-  // This function sends the complete user inputs data to Gemini
   const sendGeminiPrompt = useCallback((userInputs: UserInputs & { refinement?: string }) => {
     const promptData = {
       gender: userInputs.gender,
@@ -114,10 +118,8 @@ export const SocketProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setIsBotTyping(true);
       
       if (userInputs.refinement) {
-        // This is a refinement request
         socket.emit('gemini-refinement', userInputs.refinement);
       } else {
-        // This is the initial prompt with all collected data
         socket.emit('gemini-prompt', promptData);
       }
     } else {
